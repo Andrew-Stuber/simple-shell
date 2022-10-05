@@ -9,6 +9,8 @@
 
 #define MAX_CMD_BUFFER 255
 
+char *last_command;
+
 int bash(char input[], char* output[]){
     printf("%s\n", input);
     printf("%s\n", output[0]);
@@ -16,31 +18,26 @@ int bash(char input[], char* output[]){
 }
 
 int command(char input[]){
-    //char a[] - immutable => a[0] ='h' NOT OK
-    //char* a - mutable => a[0] = 'h' OK
     char* a = strtok(input, " ");
-    char command_word[strlen(a)];
+    size_t len = strlen(a);
+    char command_word[len];
     strcpy(command_word, a);
+
+    if (a[len - 1] == '\n') {
+        command_word[len - 1] = 0;
+    }
+
     char** b = (char**)malloc(sizeof(char*)*255);
     int pos = 0;
     while (a != NULL){
         a = strtok(NULL, " ");
-        b[pos] = a;
-        pos++;
+        b[pos++] = a;
     }
 
     if(strcmp(command_word, "echo") == 0){
-        int new_pos = pos - 2;
-        int last_str_len = strlen(b[new_pos]);
-        char last_str[last_str_len];
-        strncpy(last_str, b[new_pos], last_str_len);
-        b[new_pos] = last_str;
-        b[new_pos][last_str_len] = '\0';
-
-        for(int i = 0; i < pos-1; i++){
-            printf("%s ", b[i]);
+        for (int i = 0; i < pos - 1; i++) {
+            printf("%s%s", *(b + i), (i == pos - 2) ? "" : " ");
         }
-        printf("\n");
     } else if(strncmp(command_word, "!!", 2) == 0) {
         bash(input ,b);
     } else if(strcmp(command_word, "exit") == 0){
