@@ -1,2 +1,4 @@
 *.dSYM/
 icsh
+.idea
+*.exe

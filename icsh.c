@@ -9,15 +9,8 @@
 
 #define MAX_CMD_BUFFER 255
 
-char *last_command;
-
-int bash(char input[], char* output[]){
-    printf("%s\n", input);
-    printf("%s\n", output[0]);
-    return 0;
-}
-
 int command(char input[]){
+    // string split of 2 sections, the command words and the input string.
     char* a = strtok(input, " ");
     size_t len = strlen(a);
     char command_word[len];
@@ -34,14 +27,24 @@ int command(char input[]){
         b[pos++] = a;
     }
 
+    int number = 0;
+
+    // compare the command words to see which one is given.
     if(strcmp(command_word, "echo") == 0){
         for (int i = 0; i < pos - 1; i++) {
             printf("%s%s", *(b + i), (i == pos - 2) ? "" : " ");
         }
     } else if(strncmp(command_word, "!!", 2) == 0) {
-        bash(input ,b);
+        bash(last_command);
     } else if(strcmp(command_word, "exit") == 0){
-
+        // convert string to integer and keep number between 0-255
+        number = atoi(b)%256;
+        // keep number positive
+        if(number < 0){
+            number = number * -1;
+        }
+        printf("bye");
+        exit(number);
     } else {
         printf("Command not found\n");
     }
