@@ -3,13 +3,14 @@
  * StudentID: 6281425
  */
 
-#include "stdio.h"
-#include "string.h"
-#include "stdlib.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #define MAX_CMD_BUFFER 255
 
 char prev_input[MAX_CMD_BUFFER];
+int gac; //global ac to check the input
 
 char echo(char* input[], int pos){
     for (int i = 0; i < pos - 1; i++) {
@@ -19,6 +20,10 @@ char echo(char* input[], int pos){
 }
 
 int command(char input[]){
+    // keep the previous input if not a !!
+    if (strncmp(input, "!!", 2) != 0) {
+        strcpy(prev_input, input);
+    }
     // string split of 2 sections, the command words and the input string.
     char* a = strtok(input, " ");
     size_t len = strlen(a);
@@ -46,16 +51,18 @@ int command(char input[]){
         if (prev_input[0] == '\0') {
             return 0;
         }
-        printf("%s", prev_input);
+        if (gac != 2) printf("%s", prev_input);
         command(prev_input);
     } else if(strcmp(command_word, "exit") == 0){
         // convert string to integer and keep number between 0-255
-        number = atoi(b)%256;
+        number = atoi(b[0])%256;
+
         // keep number positive
         if(number < 0){
             number = number * -1;
         }
-        printf("bye");
+        if (gac != 2) printf("bye\n");
+
         exit(number);
     } else {
         printf("Command not found\n");
@@ -64,18 +71,39 @@ int command(char input[]){
     return 0;
 }
 
-int main() {
+// ac checks the len of the input, 1 when there's only ./icsh, 2 when there's a file ie ./icsh test.sh.
+// av is the array of character.
+int main(int ac, char *av[]) {
     char buffer[MAX_CMD_BUFFER];
-    while (1) {
-        printf("icsh $");
-        fgets(buffer, 255, stdin);
-        //printf("%s\n", buffer);
 
-        // keep the previous input if not a !!
-        if(strncmp(buffer, "!!", 2) != 0){
-            strcpy(prev_input, buffer);
+    if(ac == 1) {
+        gac = 1;
+        while (1) {
+            printf("icsh $");
+            fgets(buffer, 255, stdin);
+            //printf("%s\n", buffer);
+
+            command(buffer);
+        }
+    } else if(ac == 2){
+        gac = 2;
+        FILE *ptr;
+        char *line = NULL;
+        size_t len = 0;
+
+        ptr = fopen(av[1], "r");
+        if(ptr == NULL){
+            exit(EXIT_FAILURE);
         }
 
-        command(buffer);
+        while(getline(&line, &len, ptr) != -1) {
+            command(line);
+        }
+
+        fclose(ptr);
+        if(line){
+            free(line);
+        }
+        exit(EXIT_SUCCESS);
     }
 }
