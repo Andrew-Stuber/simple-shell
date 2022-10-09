@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define MAX_CMD_BUFFER 255
 
@@ -16,6 +18,7 @@ char echo(char* input[], int pos){
     for (int i = 0; i < pos - 1; i++) {
         printf("%s%s", *(input + i), (i == pos - 2) ? "" : " ");
     }
+    printf("\n");
     return 0;
 }
 
@@ -34,28 +37,35 @@ int command(char input[]){
         command_word[len - 1] = 0;
     }
 
-    char** b = (char**)malloc(sizeof(char*)*255);
+    char** b = malloc(sizeof(char*)*255);
     int pos = 0;
+    b[pos++] = command_word;
     while (a != NULL){
         a = strtok(NULL, " ");
         b[pos++] = a;
     }
 
+    b[pos] = NULL;
     int number = 0;
 
     // compare the command words to see which one is given.
     if(strcmp(command_word, "echo") == 0){
-        echo(b, pos);
+        echo(b + 1, pos - 1);
     } else if(strncmp(command_word, "!!", 2) == 0) {
         // if there's no previous input give back prompt
         if (prev_input[0] == '\0') {
             return 0;
         }
-        if (gac != 2) printf("%s", prev_input);
+        if (gac != 2) printf("%s\n", prev_input);
         command(prev_input);
     } else if(strcmp(command_word, "exit") == 0){
-        // convert string to integer and keep number between 0-255
-        number = atoi(b[0])%256;
+        if (b[1] == NULL) {
+            number = 0;
+        }
+        else {
+            // convert string to integer and keep number between 0-255
+            number = atoi(b[1]) % 256;
+        }
 
         // keep number positive
         if(number < 0){
@@ -65,9 +75,18 @@ int command(char input[]){
 
         exit(number);
     } else {
-        printf("Command not found\n");
+        int status;
+
+        if(fork() == 0){
+            if (execvp(b[0], b) < 0){
+                printf("%s: command not found\n", b[0]);
+            }
+        } else {
+            wait(&status);
+        }
     }
 
+    free(b);
     return 0;
 }
 
@@ -81,6 +100,12 @@ int main(int ac, char *av[]) {
         while (1) {
             printf("icsh $");
             fgets(buffer, 255, stdin);
+
+            // get rid of new line
+            size_t ln = strlen(buffer) - 1;
+            if (*buffer && buffer[ln] == '\n')
+                buffer[ln] = '\0';
+
             //printf("%s\n", buffer);
 
             command(buffer);
@@ -97,6 +122,11 @@ int main(int ac, char *av[]) {
         }
 
         while(getline(&line, &len, ptr) != -1) {
+            // get rid of new line
+            size_t ln = strlen(line) - 1;
+            if (*line && line[ln] == '\n')
+                line[ln] = '\0';
+
             command(line);
         }
 
@@ -106,4 +136,5 @@ int main(int ac, char *av[]) {
         }
         exit(EXIT_SUCCESS);
     }
+
 }
