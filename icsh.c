@@ -16,7 +16,7 @@ char buffer[MAX_CMD_BUFFER];
 char prev_input[MAX_CMD_BUFFER];
 int gac; //global ac to check the input
 int pid;
-int status;
+int status; //gets the status of the child
 
 char echo(char* input[], int pos){
     for (int i = 0; i < pos - 1; i++) {
