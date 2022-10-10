@@ -8,11 +8,15 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define MAX_CMD_BUFFER 255
 
+char buffer[MAX_CMD_BUFFER];
 char prev_input[MAX_CMD_BUFFER];
 int gac; //global ac to check the input
+int pid;
+int status;
 
 char echo(char* input[], int pos){
     for (int i = 0; i < pos - 1; i++) {
@@ -23,6 +27,14 @@ char echo(char* input[], int pos){
 }
 
 int command(char input[]){
+    if (input[0] == NULL) return 0;
+
+    if(strcmp(input, "echo $?") == 0){
+        printf("%d\n", status);
+        status = 0;
+        return 0;
+    }
+
     // keep the previous input if not a !!
     if (strncmp(input, "!!", 2) != 0) {
         strcpy(prev_input, input);
@@ -75,14 +87,13 @@ int command(char input[]){
 
         exit(number);
     } else {
-        int status;
-
-        if(fork() == 0){
+        if((pid = fork()) == 0){
             if (execvp(b[0], b) < 0){
                 printf("%s: command not found\n", b[0]);
             }
         } else {
             wait(&status);
+            pid = 0;
         }
     }
 
@@ -90,26 +101,47 @@ int command(char input[]){
     return 0;
 }
 
+void start(){
+    while (1) {
+        printf("icsh $");
+        fgets(buffer, 255, stdin);
+        // get rid of new line
+        size_t ln = strlen(buffer) - 1;
+        if (*buffer && buffer[ln] == '\n')
+            buffer[ln] = '\0';
+
+        command(buffer);
+        buffer[0] = '\0';
+    }
+}
+
+void sig_handler(int sig){
+    if (pid != 0) {
+        if(sig == SIGINT){
+            kill(pid, SIGINT);
+        } else if(sig == SIGTSTP){
+            kill(pid, SIGTSTP);
+            start();
+        }
+    }
+    pid = 0;
+}
+
 // ac checks the len of the input, 1 when there's only ./icsh, 2 when there's a file ie ./icsh test.sh.
 // av is the array of character.
 int main(int ac, char *av[]) {
-    char buffer[MAX_CMD_BUFFER];
+
+    struct sigaction sa;
+
+    sa.sa_sigaction = sig_handler;
+    sa.sa_flags = SA_RESTART;
+    sigfillset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTSTP, &sa, NULL);
 
     if(ac == 1) {
         gac = 1;
-        while (1) {
-            printf("icsh $");
-            fgets(buffer, 255, stdin);
-
-            // get rid of new line
-            size_t ln = strlen(buffer) - 1;
-            if (*buffer && buffer[ln] == '\n')
-                buffer[ln] = '\0';
-
-            //printf("%s\n", buffer);
-
-            command(buffer);
-        }
+        start();
     } else if(ac == 2){
         gac = 2;
         FILE *ptr;
