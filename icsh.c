@@ -9,25 +9,59 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 #define MAX_CMD_BUFFER 255
 
 char buffer[MAX_CMD_BUFFER];
 char prev_input[MAX_CMD_BUFFER];
-int gac; //global ac to check the input
+int gac; //global argc to check the input
 int pid;
 int status; //gets the status of the child
+int file;
+int out = 1;
+int in = 0;
 
 char echo(char* input[], int pos){
-    for (int i = 0; i < pos - 1; i++) {
-        printf("%s%s", *(input + i), (i == pos - 2) ? "" : " ");
+    for (int i = 0; input[i]; i++) {
+        printf("%s%s", input[i], (i == pos - 1) ? "" : " ");
     }
     printf("\n");
     return 0;
 }
 
+//write output to file
+void write_file(char* f){
+    file = open(f, O_CREAT | O_WRONLY | O_TRUNC);
+    if (file < 0){
+        fprintf(stderr, "Couldn't open a file\n");
+        start();
+    }
+
+    out = dup(1); // stdout -> 4
+    file = dup2(file, 1); // file -> 1
+}
+
+//read input from file
+//void read_file(char* f){
+//    file = open(f, O_RDONLY);
+//    if (file < 0){
+//        fprintf(stderr, "Couldn't open a file\n");
+//        start();
+//    }
+//
+//    in = dup(0); // stdin -> 4
+//    file = dup2(file, 0); // file -> 0
+//}
+
 int command(char input[]){
     if (input[0] == NULL) return 0;
+
+    // get the file name
+    char* file_name;
+    file_name = strrchr(input, ' ') + 1;
 
     if(strcmp(input, "echo $?") == 0){
         printf("%d\n", status);
@@ -45,21 +79,25 @@ int command(char input[]){
     char command_word[len];
     strcpy(command_word, a);
 
-    if (a[len - 1] == '\n') {
-        command_word[len - 1] = 0;
-    }
-
     char** b = malloc(sizeof(char*)*255);
     int pos = 0;
     b[pos++] = command_word;
     while (a != NULL){
         a = strtok(NULL, " ");
+        // check if input contains < or >
+        if(a && strcmp(a, "<") == 0) {
+            //read_file(file_name);
+            break;
+        } else if(a && strcmp(a, ">") == 0) {
+            write_file(file_name);
+            break;
+        }
+
         b[pos++] = a;
     }
 
     b[pos] = NULL;
     int number = 0;
-
     // compare the command words to see which one is given.
     if(strcmp(command_word, "echo") == 0){
         echo(b + 1, pos - 1);
@@ -96,7 +134,12 @@ int command(char input[]){
             pid = 0;
         }
     }
-
+    if(file) {
+        close(file);
+        file = 0;
+    }
+    out = dup2(out, 1); // stdout -> 1
+    //in = dup2(in, 0); // stdin -> 0
     free(b);
     return 0;
 }
@@ -130,7 +173,6 @@ void sig_handler(int sig){
 // ac checks the len of the input, 1 when there's only ./icsh, 2 when there's a file ie ./icsh test.sh.
 // av is the array of character.
 int main(int ac, char *av[]) {
-
     struct sigaction sa;
 
     sa.sa_sigaction = sig_handler;
