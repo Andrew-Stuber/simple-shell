@@ -45,16 +45,16 @@ void write_file(char* f){
 }
 
 //read input from file
-//void read_file(char* f){
-//    file = open(f, O_RDONLY);
-//    if (file < 0){
-//        fprintf(stderr, "Couldn't open a file\n");
-//        start();
-//    }
-//
-//    in = dup(0); // stdin -> 4
-//    file = dup2(file, 0); // file -> 0
-//}
+void read_file(char* f){
+    file = open(f, O_RDONLY);
+    if (file < 0){
+        fprintf(stderr, "Couldn't open a file\n");
+        start();
+    }
+
+    in = dup(0); // stdin -> 4
+    file = dup2(file, 0); // file -> 0
+}
 
 int command(char input[]){
     if (input[0] == NULL) return 0;
@@ -86,7 +86,7 @@ int command(char input[]){
         a = strtok(NULL, " ");
         // check if input contains < or >
         if(a && strcmp(a, "<") == 0) {
-            //read_file(file_name);
+            read_file(file_name);
             break;
         } else if(a && strcmp(a, ">") == 0) {
             write_file(file_name);
@@ -139,7 +139,7 @@ int command(char input[]){
         file = 0;
     }
     out = dup2(out, 1); // stdout -> 1
-    //in = dup2(in, 0); // stdin -> 0
+    in = dup2(in, 0); // stdin -> 0
     free(b);
     return 0;
 }
@@ -198,9 +198,9 @@ int main(int ac, char *av[]) {
         while(getline(&line, &len, ptr) != -1) {
             // get rid of new line
             size_t ln = strlen(line) - 1;
-            if (*line && line[ln] == '\n')
-                line[ln] = '\0';
-
+            if (*line && line[ln] == '\n') {
+                line[ln - 1] = '\0';
+            }
             command(line);
         }
 
