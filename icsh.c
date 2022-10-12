@@ -24,13 +24,12 @@ int file;
 int out = 1;
 int in = 0;
 
-struct jobs {
+struct job {
     char command[255];
-    pid_t pgid;
-    int jobID;
+    int pid;
 };
 
-struct jobs job[100];
+struct job jobs[100];
 
 char echo(char* input[], int pos){
     for (int i = 0; input[i]; i++) {
@@ -64,44 +63,33 @@ void read_file(char* f){
     file = dup2(file, 0); // file -> 0
 }
 
-void background(char input[]) {
+void background(char input[],  char **b) {
     int len = strlen(input);
     char c[len];
+    int i;
     strcpy(c, input);
-    int id;
 
     if (c[len - 1] == '&') {
         c[len - 1] = '\0';
     }
 
-    for (int i = 1; i < 100; i++) {
-        if (job[i].jobID == 0) {
-            job[i].jobID = i;
-//            job[i].pgid = getpid();
-            strcpy(job[i].command, c);
-            id = i;
+    for (i = 0; i < 100; i++) {
+        if (jobs[i].pid == 0) {
+            if ((jobs[i].pid = fork()) == 0) {
+                setpgid(0, getpid());
+                execvp(b[0], b);
+            }
+            strcpy(jobs[i].command, input);
+            printf("[%d] %s pid:%d\n", i + 1, jobs[i].command, jobs[i].pid);
             break;
-        }
-    }
-
-    printf("A\n");
-
-    if((pid = fork())== 0) {
-        job[id].pgid = getpid();
-        printf("[%d] %d\n", id, job[id].pgid);
-        printf("\n");
-
-        if(execvp(c[0], c) < 0) {
-            perror(execvp);
-        } else {
-            wait(&status);
-            pid = 0;
         }
     }
     start();
 }
 
 int command(char input[]){
+    char input_copy[255];
+    strcpy(input_copy, input);
     if (input[0] == NULL) return 0;
 
     // get the last word in the string
@@ -144,7 +132,8 @@ int command(char input[]){
         }
 
         if(a && strcmp(a, "&") == 0) {
-            background(b);
+            b[pos] = NULL;
+            background(input_copy, b);
         }
 
         b[pos++] = a;
@@ -156,6 +145,13 @@ int command(char input[]){
     // compare the command words to see which one is given.
     if(strcmp(command_word, "echo") == 0){
         echo(b + 1, pos - 1);
+    } else if(strcmp(command_word, "jobs") == 0) {
+        // lists the jobs and the status
+        for(int i = 0; i < 100; i++) {
+            if(jobs[i].pid != 0) {
+                printf("[%d]+ Running                  %s\n", i + 1, jobs[i].command);
+            }
+        }
     } else if(strncmp(command_word, "!!", 2) == 0) {
         // if there's no previous input give back prompt
         if (prev_input[0] == '\0') {
@@ -180,7 +176,6 @@ int command(char input[]){
 
         exit(number);
     } else {
-        printf("Hello, %s\n", input);
         if((pid = fork()) == 0){
             if (execvp(b[0], b) < 0){
                 printf("%s: command not found\n", b[0]);
@@ -236,7 +231,8 @@ int main(int ac, char *av[]) {
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTSTP, &sa, NULL);
-
+    setpgid(0, getpid());
+    tcsetpgrp(0, getpid());
     if(ac == 1) {
         gac = 1;
         start();
