@@ -24,6 +24,14 @@ int file;
 int out = 1;
 int in = 0;
 
+struct jobs {
+    char command[255];
+    pid_t pgid;
+    int jobID;
+};
+
+struct jobs job[100];
+
 char echo(char* input[], int pos){
     for (int i = 0; input[i]; i++) {
         printf("%s%s", input[i], (i == pos - 1) ? "" : " ");
@@ -56,12 +64,54 @@ void read_file(char* f){
     file = dup2(file, 0); // file -> 0
 }
 
+void background(char input[]) {
+    int len = strlen(input);
+    char c[len];
+    strcpy(c, input);
+    int id;
+
+    if (c[len - 1] == '&') {
+        c[len - 1] = '\0';
+    }
+
+    for (int i = 1; i < 100; i++) {
+        if (job[i].jobID == 0) {
+            job[i].jobID = i;
+//            job[i].pgid = getpid();
+            strcpy(job[i].command, c);
+            id = i;
+            break;
+        }
+    }
+
+    printf("A\n");
+
+    if((pid = fork())== 0) {
+        job[id].pgid = getpid();
+        printf("[%d] %d\n", id, job[id].pgid);
+        printf("\n");
+
+        if(execvp(c[0], c) < 0) {
+            perror(execvp);
+        } else {
+            wait(&status);
+            pid = 0;
+        }
+    }
+    start();
+}
+
 int command(char input[]){
     if (input[0] == NULL) return 0;
 
-    // get the file name
-    char* file_name;
-    file_name = strrchr(input, ' ') + 1;
+    // get the last word in the string
+    char* last_word;
+    last_word = strrchr(input, ' ') + 1;
+
+    // checks if it's a '&' to run in the background
+//    if (strcmp(last_word, "&") == 0) {
+//        background(input);
+//    }
 
     if(strcmp(input, "echo $?") == 0){
         printf("%d\n", status);
@@ -86,11 +136,15 @@ int command(char input[]){
         a = strtok(NULL, " ");
         // check if input contains < or >
         if(a && strcmp(a, "<") == 0) {
-            read_file(file_name);
+            read_file(last_word);
             break;
         } else if(a && strcmp(a, ">") == 0) {
-            write_file(file_name);
+            write_file(last_word);
             break;
+        }
+
+        if(a && strcmp(a, "&") == 0) {
+            background(b);
         }
 
         b[pos++] = a;
@@ -98,6 +152,7 @@ int command(char input[]){
 
     b[pos] = NULL;
     int number = 0;
+
     // compare the command words to see which one is given.
     if(strcmp(command_word, "echo") == 0){
         echo(b + 1, pos - 1);
@@ -125,6 +180,7 @@ int command(char input[]){
 
         exit(number);
     } else {
+        printf("Hello, %s\n", input);
         if((pid = fork()) == 0){
             if (execvp(b[0], b) < 0){
                 printf("%s: command not found\n", b[0]);
