@@ -79,6 +79,7 @@ void background(char input[],  char **b) {
                 setpgid(0, getpid());
                 execvp(b[0], b);
             }
+            printf("%d\n", i);
             strcpy(jobs[i].command, input);
             printf("[%d] %s pid:%d\n", i + 1, jobs[i].command, jobs[i].pid);
             break;
@@ -149,7 +150,9 @@ int command(char input[]){
         // lists the jobs and the status
         for(int i = 0; i < 100; i++) {
             if(jobs[i].pid != 0) {
-                printf("[%d]+ Running                  %s\n", i + 1, jobs[i].command);
+                int stat;
+                waitpid(jobs[i].pid, &stat, WNOHANG | WUNTRACED);
+                printf("[%d]+ %s                  %s\n", i + 1, WIFSTOPPED(stat) ? "Suspended" : "Running", jobs[i].command);
             }
         }
     } else if(strncmp(command_word, "!!", 2) == 0) {
@@ -181,7 +184,8 @@ int command(char input[]){
                 printf("%s: command not found\n", b[0]);
             }
         } else {
-            wait(&status);
+            // blocks until child is stopped or terminated
+            waitpid(pid, 0, WUNTRACED);
             pid = 0;
         }
     }
@@ -209,13 +213,25 @@ void start(){
     }
 }
 
-void sig_handler(int sig){
+void sig_handler2(int sig, siginfo_t *info, void *trash){
+//    wait(0);
+    for (int i=0;i<100;i++)
+    {
+        if (jobs[i].pid != 0 && info->si_pid == jobs[i].pid)
+        {
+            printf("Done\n");
+            jobs[i].pid = 0;
+        }
+    }
+//    start();
+}
+
+void sig_handler(int sig, siginfo_t *info, void *trash){
     if (pid != 0) {
-        if(sig == SIGINT){
+        if(sig == SIGINT) {
             kill(pid, SIGINT);
-        } else if(sig == SIGTSTP){
-            kill(pid, SIGTSTP);
-            start();
+        } else if(sig == SIGTSTP) {
+            kill(pid, SIGSTOP);
         }
     }
     pid = 0;
@@ -225,12 +241,17 @@ void sig_handler(int sig){
 // av is the array of character.
 int main(int ac, char *av[]) {
     struct sigaction sa;
+    struct sigaction sa2;
 
     sa.sa_sigaction = sig_handler;
-    sa.sa_flags = SA_RESTART;
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTSTP, &sa, NULL);
+
+    sa2.sa_sigaction = sig_handler2;
+    sa2.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigaction(SIGCHLD, &sa2, NULL);
     setpgid(0, getpid());
     tcsetpgrp(0, getpid());
     if(ac == 1) {
