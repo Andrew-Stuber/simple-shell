@@ -213,17 +213,17 @@ void start(){
     }
 }
 
+// get the signal of the terminated background job and print it asynchronously
 void sig_handler2(int sig, siginfo_t *info, void *trash){
-//    wait(0);
+    waitpid(-1, 0, WNOHANG);
     for (int i=0;i<100;i++)
     {
         if (jobs[i].pid != 0 && info->si_pid == jobs[i].pid)
         {
-            printf("Done\n");
+            printf("\n[%d]+ Done                  %s\n", i + 1, jobs[i].command);
             jobs[i].pid = 0;
         }
     }
-//    start();
 }
 
 void sig_handler(int sig, siginfo_t *info, void *trash){
