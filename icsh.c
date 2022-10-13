@@ -26,6 +26,7 @@ int in = 0;
 
 struct job {
     char command[255];
+    int is_fg;
     int pid;
 };
 
@@ -64,16 +65,7 @@ void read_file(char* f){
 }
 
 void background(char input[],  char **b) {
-    int len = strlen(input);
-    char c[len];
-    int i;
-    strcpy(c, input);
-
-    if (c[len - 1] == '&') {
-        c[len - 1] = '\0';
-    }
-
-    for (i = 0; i < 100; i++) {
+    for (int i = 0; i < 100; i++) {
         if (jobs[i].pid == 0) {
             if ((jobs[i].pid = fork()) == 0) {
                 setpgid(0, getpid());
@@ -88,6 +80,21 @@ void background(char input[],  char **b) {
     start();
 }
 
+void fg(int id) {
+    int len = strlen(jobs[id - 1].command);
+    char command[len];
+    strcpy(command, jobs[id - 1].command);
+    if (command[len - 1] == '&') {
+        command[len - 1] = '\0';
+    }
+
+    printf("%s\n", command);
+    tcsetpgrp(0, jobs[id - 1].pid);
+    jobs[id - 1].is_fg = 1;
+    pid = jobs[id - 1].pid;
+    waitpid(jobs[id-1].pid, 0, WUNTRACED);
+}
+
 int command(char input[]){
     char input_copy[255];
     strcpy(input_copy, input);
@@ -96,11 +103,6 @@ int command(char input[]){
     // get the last word in the string
     char* last_word;
     last_word = strrchr(input, ' ') + 1;
-
-    // checks if it's a '&' to run in the background
-//    if (strcmp(last_word, "&") == 0) {
-//        background(input);
-//    }
 
     if(strcmp(input, "echo $?") == 0){
         printf("%d\n", status);
@@ -178,6 +180,10 @@ int command(char input[]){
         if (gac != 2) printf("bye\n");
 
         exit(number);
+    } else if (strcmp(command_word, "fg") == 0){
+        //get the job id
+        int n = atoi(last_word + 1);
+        fg(n);
     } else {
         if((pid = fork()) == 0){
             if (execvp(b[0], b) < 0){
@@ -215,15 +221,24 @@ void start(){
 
 // get the signal of the terminated background job and print it asynchronously
 void sig_handler2(int sig, siginfo_t *info, void *trash){
-    waitpid(-1, 0, WNOHANG);
+    int s;
+    waitpid(-1, &s, WNOHANG);
+    tcsetpgrp(0, getpid());
     for (int i=0;i<100;i++)
     {
         if (jobs[i].pid != 0 && info->si_pid == jobs[i].pid)
         {
-            printf("\n[%d]+ Done                  %s\n", i + 1, jobs[i].command);
+            if (jobs[i].is_fg)
+            {
+//                tcsetpgrp(0, getpid());
+                jobs[i].is_fg = 0;
+            }
+            else
+                printf("\n[%d]+ Done                  %s", i + 1, jobs[i].command);
             jobs[i].pid = 0;
         }
     }
+    printf("\n");
 }
 
 void sig_handler(int sig, siginfo_t *info, void *trash){
@@ -252,6 +267,8 @@ int main(int ac, char *av[]) {
     sa2.sa_sigaction = sig_handler2;
     sa2.sa_flags = SA_RESTART | SA_SIGINFO;
     sigaction(SIGCHLD, &sa2, NULL);
+    sigaction(SIGTTIN, &sa2, NULL);
+    sigaction(SIGTTOU, &sa2, NULL);
     setpgid(0, getpid());
     tcsetpgrp(0, getpid());
     if(ac == 1) {
