@@ -27,8 +27,8 @@ int in = 0;  //stdin
 
 struct job {
     char command[255];
-    int is_fg;
-    int is_sus;
+    int is_fg;  // check if it's in foreground
+    int is_sus; // check if it's suspended (not amongus)
     int pid;
 };
 
@@ -228,7 +228,7 @@ int command(char input[]) {
 void start() {
     while (1) {
         printf("icsh $");
-        fgets(buffer, 255, stdin);
+        if (!fgets(buffer, 255, stdin)) break;
         // get rid of new line
         size_t ln = strlen(buffer) - 1;
         if (*buffer && buffer[ln] == '\n')
@@ -239,7 +239,7 @@ void start() {
     }
 }
 
-// get the signal of the terminated background job and print it asynchronously
+// get the signal of the terminated and suspended background job and print it asynchronously
 void sig_handler2(int sig, siginfo_t *info, void *trash) {
     tcsetpgrp(0, getpid());
     for (int i = 0; i < 100; i++) {
@@ -311,7 +311,7 @@ int main(int ac, char *av[]) {
             // get rid of new line
             size_t ln = strlen(line) - 1;
             if (*line && line[ln] == '\n') {
-                line[ln - 1] = '\0';
+                line[ln] = '\0';
             }
             command(line);
         }
