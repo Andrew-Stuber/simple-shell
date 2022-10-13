@@ -1,7 +1,7 @@
 [![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-c66648af7eb3fe8bc4f294546bfd86ef473780cde1dea487d3c4ff354943c9ae.svg)](https://classroom.github.com/online_ide?assignment_repo_id=8783230&assignment_repo_type=AssignmentRepo)
 # ICSH
 
-This shell contains all the functions up to milestone 7. It is messy and sometimes it 
+This shell contains all the functions up to milestone 6. It is messy and sometimes it 
 will have a bug.
 
 References:
